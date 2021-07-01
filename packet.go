@@ -16,4 +16,5 @@ const (
 	PACKET_TYPE_ADD_USERS     PacketType = 5
 	PACKET_TYPE_REMOVE_USERS  PacketType = 6
 	PACKET_TYPE_MESSAGE       PacketType = 7
+	PACKET_TYPE_GET_MESSAGES  PacketType = 8
 )
