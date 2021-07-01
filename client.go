@@ -87,7 +87,7 @@ func (client *Client) ParseMessage(message []byte) error {
 			recvMsg["channelUuid"].(string),
 			client.User.Uuid,
 			time.Now(),
-			0,
+			time.Time{},
 			recvMsg["content"].(string),
 		}
 

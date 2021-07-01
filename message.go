@@ -7,7 +7,7 @@ type Message struct {
 	ChannelUuid string    `json:"channelUuid"`
 	UserUuid    string    `json:"userUuid"`
 	Date        time.Time `json:"date"`
-	Edited      int       `json:"edited"`
+	Edited      time.Time `json:"edited"`
 	Content     string    `json:"content"`
 }
 
