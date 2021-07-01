@@ -185,6 +185,11 @@ func (s *Server) HttpHandleWebSocket(ctx *fasthttp.RequestCtx) {
 		}
 		s.Hub.Register <- client
 
+		s.Hub.Broadcast <- Packet{
+			Type: PACKET_TYPE_ONLINE_USERS,
+			Data: []string{user.Uuid},
+		}
+
 		client.Goroutine()
 	})
 
