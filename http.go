@@ -52,7 +52,6 @@ func (s *Server) HttpUserLogin(ctx *fasthttp.RequestCtx) {
 			log.Print(err)
 			ctx.WriteString("-1")
 		} else {
-
 			hash := sha256.Sum256([]byte(randomString(64)))
 			token := hex.EncodeToString(hash[:])
 
@@ -92,13 +91,18 @@ func (s *Server) HttpUserRegister(ctx *fasthttp.RequestCtx) {
 		} else {
 			hash := sha256.Sum256([]byte(form.Password))
 			hashedPassword := hex.EncodeToString(hash[:])
-			user := &User{
+			user := User{
 				Uuid:     uuid.New().String(),
 				Login:    form.Login,
 				Password: hashedPassword,
 			}
-			_, err := s.Db.Model(user).Insert()
+			_, err := s.Db.Model(&user).Insert()
 			panicIf(err)
+
+			s.Hub.Broadcast <- Packet{
+				Type: PACKET_TYPE_ADD_USERS,
+				Data: []User{user},
+			}
 
 			hash = sha256.Sum256([]byte(randomString(64)))
 			token := hex.EncodeToString(hash[:])

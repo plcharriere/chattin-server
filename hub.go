@@ -14,6 +14,7 @@ type Hub struct {
 	Register   chan *Client
 	Unregister chan *Client
 	Message    chan ClientMessage
+	Broadcast  chan Packet
 }
 
 type ClientMessage struct {
@@ -28,6 +29,7 @@ func NewHub(server *Server) *Hub {
 		Unregister: make(chan *Client),
 		Clients:    make(map[*Client]bool),
 		Message:    make(chan ClientMessage),
+		Broadcast:  make(chan Packet),
 	}
 }
 
@@ -44,8 +46,11 @@ func (hub *Hub) Goroutine() {
 			hub.SendUserState(client.User, false)
 		case message := <-hub.Message:
 			hub.ParseClientMessage(message.message, message.client)
+		case packet := <-hub.Broadcast:
+			for c := range hub.Clients {
+				c.Conn.WriteJSON(packet)
+			}
 		}
-
 	}
 }
 
@@ -72,9 +77,12 @@ func (hub *Hub) ParseClientMessage(message []byte, client *Client) error {
 
 	switch packet.Type {
 	case PACKET_TYPE_USER_LIST:
+		var users []User
+		err = hub.Server.Db.Model(&users).Select()
+		panicIf(err)
 		client.Conn.WriteJSON(Packet{
 			Type: packet.Type,
-			Data: hub.Server.Users,
+			Data: users,
 		})
 	case PACKET_TYPE_ONLINE_USERS:
 		onlineUsers := []string{}
@@ -86,9 +94,12 @@ func (hub *Hub) ParseClientMessage(message []byte, client *Client) error {
 			Data: onlineUsers,
 		})
 	case PACKET_TYPE_CHANNEL_LIST:
+		var channels []Channel
+		err = hub.Server.Db.Model(&channels).Select()
+		panicIf(err)
 		client.Conn.WriteJSON(Packet{
 			Type: packet.Type,
-			Data: hub.Server.Channels,
+			Data: channels,
 		})
 	case PACKET_TYPE_MESSAGE:
 		recvMsg := packet.Data.(map[string]interface{})

@@ -10,10 +10,8 @@ import (
 )
 
 type Server struct {
-	Db       *pg.DB
-	Hub      *Hub
-	Channels []Channel
-	Users    []User
+	Db  *pg.DB
+	Hub *Hub
 }
 
 func main() {
@@ -38,16 +36,6 @@ func main() {
 	if err == nil {
 		log.Println("Created postgres schema")
 	}
-
-	log.Println("Loading channels...")
-	err = server.Db.Model(&server.Channels).Select()
-	panicIf(err)
-	log.Printf("Loaded %d channels", len(server.Channels))
-
-	log.Println("Loading users...")
-	err = server.Db.Model(&server.Users).Select()
-	panicIf(err)
-	log.Printf("Loaded %d users", len(server.Users))
 
 	server.Hub = NewHub(server)
 	go server.Hub.Goroutine()
