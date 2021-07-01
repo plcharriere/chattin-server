@@ -173,17 +173,17 @@ func (s *Server) HttpHandleWebSocket(ctx *fasthttp.RequestCtx) {
 
 		log.Println("GOOD TOKEN:", token, "IS", user.Uuid, user.Login)
 
+		conn.WriteJSON(Packet{
+			Type: PACKET_TYPE_AUTH,
+			Data: user.Uuid,
+		})
+
 		client := &Client{
 			Conn: conn,
 			Hub:  s.Hub,
 			User: user,
 		}
 		s.Hub.Register <- client
-
-		conn.WriteJSON(Packet{
-			Type: PACKET_TYPE_AUTH,
-			Data: user.Uuid,
-		})
 
 		client.Goroutine()
 	})
