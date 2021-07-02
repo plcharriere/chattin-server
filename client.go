@@ -91,14 +91,19 @@ func (client *Client) ParseMessage(message []byte) error {
 			recvMsg["content"].(string),
 		}
 
-		_, err := client.Hub.Server.Db.Model(msg).Insert()
-		if err != nil {
-			return nil
-		}
+		channel := client.Hub.Server.GetChannelByUuid(recvMsg["channelUuid"].(string))
+		if channel != nil {
+			if channel.SaveMessages {
+				_, err := client.Hub.Server.Db.Model(msg).Insert()
+				if err != nil {
+					return err
+				}
+			}
 
-		client.Hub.Broadcast <- Packet{
-			Type: packet.Type,
-			Data: msg,
+			client.Hub.Broadcast <- Packet{
+				Type: packet.Type,
+				Data: msg,
+			}
 		}
 	case PACKET_TYPE_GET_MESSAGES:
 		recvMsg := packet.Data.(map[string]interface{})

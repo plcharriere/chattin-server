@@ -9,11 +9,6 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-type Server struct {
-	Db  *pg.DB
-	Hub *Hub
-}
-
 func main() {
 	log.Println("Welcome to IM Server")
 
@@ -31,6 +26,12 @@ func main() {
 	panicIf(err)
 
 	log.Println("Postgresql connection successful")
+
+	log.Print("Loading channels...")
+	err = server.Db.Model(&server.Channels).Select()
+	panicIf(err)
+
+	log.Printf("Loaded %d channel(s)", len(server.Channels))
 
 	err = createSchema(server.Db)
 	if err == nil {
