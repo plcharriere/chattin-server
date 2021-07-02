@@ -18,12 +18,12 @@ func (s *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
 	ctx.Response.Header.Set("Access-Control-Allow-Headers", "*")
 
 	switch string(ctx.Path()) {
+	case "/ws":
+		s.HttpHandleWebSocket(ctx)
 	case "/register":
 		s.HttpUserRegister(ctx)
 	case "/login":
 		s.HttpUserLogin(ctx)
-	case "/ws":
-		s.HttpHandleWebSocket(ctx)
 	default:
 		ctx.Error("Unsupported path", fasthttp.StatusNotFound)
 	}
@@ -36,6 +36,9 @@ type CredentialsForm struct {
 
 func (s *Server) HttpUserLogin(ctx *fasthttp.RequestCtx) {
 	if string(ctx.Method()) != fasthttp.MethodPost {
+		if string(ctx.Method()) != fasthttp.MethodOptions {
+			ctx.Error("", fasthttp.StatusBadRequest)
+		}
 		return
 	}
 
@@ -71,6 +74,9 @@ func (s *Server) HttpUserLogin(ctx *fasthttp.RequestCtx) {
 
 func (s *Server) HttpUserRegister(ctx *fasthttp.RequestCtx) {
 	if string(ctx.Method()) != fasthttp.MethodPost {
+		if string(ctx.Method()) != fasthttp.MethodOptions {
+			ctx.Error("", fasthttp.StatusBadRequest)
+		}
 		return
 	}
 
