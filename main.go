@@ -48,6 +48,8 @@ func createSchema(db *pg.DB) error {
 	models := []interface{}{
 		(*User)(nil),
 		(*UserToken)(nil),
+		(*UserAvatar)(nil),
+		(*UserFile)(nil),
 		(*Channel)(nil),
 		(*Message)(nil),
 	}

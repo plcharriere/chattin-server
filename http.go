@@ -24,6 +24,8 @@ func (s *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
 		s.HttpUserRegister(ctx)
 	case "/login":
 		s.HttpUserLogin(ctx)
+	case "/user/profile":
+		s.HttpUserProfile(ctx)
 	default:
 		ctx.Error("Unsupported path", fasthttp.StatusNotFound)
 	}
@@ -43,7 +45,11 @@ func (s *Server) HttpUserLogin(ctx *fasthttp.RequestCtx) {
 	}
 
 	var form CredentialsForm
-	json.Unmarshal(ctx.Request.Body(), &form)
+	err := json.Unmarshal(ctx.Request.Body(), &form)
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
 	if len(form.Login) > 0 && len(form.Password) > 0 {
 		hash := sha256.Sum256([]byte(form.Password))
@@ -81,7 +87,11 @@ func (s *Server) HttpUserRegister(ctx *fasthttp.RequestCtx) {
 	}
 
 	var form CredentialsForm
-	json.Unmarshal(ctx.Request.Body(), &form)
+	err := json.Unmarshal(ctx.Request.Body(), &form)
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
 	if len(form.Login) < 1 {
 		ctx.Error("MISSING_LOGIN", fasthttp.StatusOK)
@@ -123,6 +133,60 @@ func (s *Server) HttpUserRegister(ctx *fasthttp.RequestCtx) {
 			ctx.WriteString(token)
 		}
 	}
+}
+
+type ProfileForm struct {
+	Token    string `json:"token"`
+	Nickname string `json:"nickname"`
+	Bio      string `json:"bio"`
+}
+
+func (s *Server) HttpUserProfile(ctx *fasthttp.RequestCtx) {
+	if string(ctx.Method()) != fasthttp.MethodPost {
+		if string(ctx.Method()) != fasthttp.MethodOptions {
+			ctx.Error("", fasthttp.StatusBadRequest)
+		}
+		return
+	}
+
+	var form ProfileForm
+	err := json.Unmarshal(ctx.Request.Body(), &form)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	userToken := &UserToken{
+		Token: form.Token,
+	}
+	err = s.Db.Model(userToken).WherePK().Select()
+	if err != nil {
+		ctx.WriteString("-1")
+		return
+	}
+
+	user := User{
+		Uuid:     userToken.Uuid,
+		Nickname: form.Nickname,
+		Bio:      form.Bio,
+	}
+	_, err = s.Db.Model(&user).WherePK().Column("nickname", "bio").Update()
+	panicIf(err)
+
+	user = User{
+		Uuid: userToken.Uuid,
+	}
+	err = s.Db.Model(&user).WherePK().Select()
+	panicIf(err)
+
+	go func() {
+		s.Hub.Broadcast <- Packet{
+			Type: PACKET_TYPE_UPDATE_USERS,
+			Data: []User{user},
+		}
+	}()
+
+	ctx.WriteString("1")
 }
 
 var upgrader = websocket.FastHTTPUpgrader{
