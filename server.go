@@ -1,9 +1,13 @@
 package main
 
-import "github.com/go-pg/pg/v10"
+import (
+	"github.com/fasthttp/router"
+	"github.com/go-pg/pg/v10"
+)
 
 type Server struct {
 	Db       *pg.DB
+	Router   *router.Router
 	Hub      *Hub
 	Channels []*Channel
 }

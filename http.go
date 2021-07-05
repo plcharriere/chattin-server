@@ -7,28 +7,25 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/fasthttp/router"
 	"github.com/fasthttp/websocket"
 	"github.com/go-pg/pg/v10"
 	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
 )
 
-func (s *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
+func (server *Server) SetupFastHTTPRouter() {
+	server.Router = router.New()
+	server.Router.GET("/ws", server.HttpHandleWebSocket)
+	server.Router.POST("/register", server.HttpUserRegister)
+	server.Router.POST("/login", server.HttpUserLogin)
+	server.Router.POST("/user/profile", server.HttpHandleWebSocket)
+}
+
+func (server *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
 	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
 	ctx.Response.Header.Set("Access-Control-Allow-Headers", "*")
-
-	switch string(ctx.Path()) {
-	case "/ws":
-		s.HttpHandleWebSocket(ctx)
-	case "/register":
-		s.HttpUserRegister(ctx)
-	case "/login":
-		s.HttpUserLogin(ctx)
-	case "/user/profile":
-		s.HttpUserProfile(ctx)
-	default:
-		ctx.Error("Unsupported path", fasthttp.StatusNotFound)
-	}
+	server.Router.Handler(ctx)
 }
 
 type CredentialsForm struct {

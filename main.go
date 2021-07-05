@@ -27,16 +27,18 @@ func main() {
 
 	log.Println("Postgresql connection successful")
 
+	err = createSchema(server.Db)
+	if err == nil {
+		log.Println("Created postgres schema")
+	}
+
 	log.Print("Loading channels...")
 	err = server.Db.Model(&server.Channels).Select()
 	panicIf(err)
 
 	log.Printf("Loaded %d channel(s)", len(server.Channels))
 
-	err = createSchema(server.Db)
-	if err == nil {
-		log.Println("Created postgres schema")
-	}
+	server.SetupFastHTTPRouter()
 
 	server.Hub = NewHub(server)
 	go server.Hub.Goroutine()

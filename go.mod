@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/andybalholm/brotli v1.0.3 // indirect
+	github.com/fasthttp/router v1.4.0 // indirect
 	github.com/fasthttp/websocket v1.4.3 // indirect
 	github.com/go-pg/pg/v10 v10.10.0 // indirect
 	github.com/google/uuid v1.2.0 // indirect
