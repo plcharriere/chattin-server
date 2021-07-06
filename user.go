@@ -10,8 +10,8 @@ type User struct {
 }
 
 type UserToken struct {
-	Token string `pg:",pk"`
-	Uuid  string `pg:",nopk"`
+	Token    string `pg:",pk"`
+	UserUuid string `pg:",nopk"`
 }
 
 type UserAvatar struct {

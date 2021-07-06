@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 
 	"github.com/fasthttp/router"
@@ -19,7 +21,9 @@ func (server *Server) SetupFastHTTPRouter() {
 	server.Router.GET("/ws", server.HttpHandleWebSocket)
 	server.Router.POST("/register", server.HttpUserRegister)
 	server.Router.POST("/login", server.HttpUserLogin)
-	server.Router.POST("/user/profile", server.HttpHandleWebSocket)
+	server.Router.POST("/user/profile", server.HttpUserProfile)
+	server.Router.POST("/avatars", server.HttpUserPostAvatar)
+	server.Router.GET("/avatars/{uuid}", server.HttpUserGetAvatar)
 }
 
 func (server *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
@@ -34,13 +38,6 @@ type CredentialsForm struct {
 }
 
 func (s *Server) HttpUserLogin(ctx *fasthttp.RequestCtx) {
-	if string(ctx.Method()) != fasthttp.MethodPost {
-		if string(ctx.Method()) != fasthttp.MethodOptions {
-			ctx.Error("", fasthttp.StatusBadRequest)
-		}
-		return
-	}
-
 	var form CredentialsForm
 	err := json.Unmarshal(ctx.Request.Body(), &form)
 	if err != nil {
@@ -62,8 +59,8 @@ func (s *Server) HttpUserLogin(ctx *fasthttp.RequestCtx) {
 			token := hex.EncodeToString(hash[:])
 
 			userToken := &UserToken{
-				Token: token,
-				Uuid:  uuid,
+				Token:    token,
+				UserUuid: uuid,
 			}
 			_, err = s.Db.Model(userToken).Insert()
 			panicIf(err)
@@ -76,13 +73,6 @@ func (s *Server) HttpUserLogin(ctx *fasthttp.RequestCtx) {
 }
 
 func (s *Server) HttpUserRegister(ctx *fasthttp.RequestCtx) {
-	if string(ctx.Method()) != fasthttp.MethodPost {
-		if string(ctx.Method()) != fasthttp.MethodOptions {
-			ctx.Error("", fasthttp.StatusBadRequest)
-		}
-		return
-	}
-
 	var form CredentialsForm
 	err := json.Unmarshal(ctx.Request.Body(), &form)
 	if err != nil {
@@ -121,8 +111,8 @@ func (s *Server) HttpUserRegister(ctx *fasthttp.RequestCtx) {
 			token := hex.EncodeToString(hash[:])
 
 			userToken := &UserToken{
-				Token: token,
-				Uuid:  user.Uuid,
+				Token:    token,
+				UserUuid: user.Uuid,
 			}
 			_, err = s.Db.Model(userToken).Insert()
 			panicIf(err)
@@ -139,13 +129,6 @@ type ProfileForm struct {
 }
 
 func (s *Server) HttpUserProfile(ctx *fasthttp.RequestCtx) {
-	if string(ctx.Method()) != fasthttp.MethodPost {
-		if string(ctx.Method()) != fasthttp.MethodOptions {
-			ctx.Error("", fasthttp.StatusBadRequest)
-		}
-		return
-	}
-
 	var form ProfileForm
 	err := json.Unmarshal(ctx.Request.Body(), &form)
 	if err != nil {
@@ -163,7 +146,7 @@ func (s *Server) HttpUserProfile(ctx *fasthttp.RequestCtx) {
 	}
 
 	user := User{
-		Uuid:     userToken.Uuid,
+		Uuid:     userToken.UserUuid,
 		Nickname: form.Nickname,
 		Bio:      form.Bio,
 	}
@@ -171,7 +154,7 @@ func (s *Server) HttpUserProfile(ctx *fasthttp.RequestCtx) {
 	panicIf(err)
 
 	user = User{
-		Uuid: userToken.Uuid,
+		Uuid: userToken.UserUuid,
 	}
 	err = s.Db.Model(&user).WherePK().Select()
 	panicIf(err)
@@ -184,6 +167,104 @@ func (s *Server) HttpUserProfile(ctx *fasthttp.RequestCtx) {
 	}()
 
 	ctx.WriteString("1")
+}
+
+func (s *Server) HttpUserPostAvatar(ctx *fasthttp.RequestCtx) {
+	token := string(ctx.FormValue("token"))
+	fileHeader, err := ctx.FormFile("file")
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	validTypes := map[string]bool{
+		"image/png":  true,
+		"image/jpeg": true,
+		"image/gif":  true,
+		"image/webp": true,
+	}
+
+	fileType := fileHeader.Header.Get("Content-Type")
+	if _, ok := validTypes[fileType]; !ok {
+		log.Print("bad type")
+		return
+	}
+
+	userToken := &UserToken{
+		Token: token,
+	}
+	err = s.Db.Model(userToken).WherePK().Select()
+	if err != nil {
+		ctx.WriteString("-1")
+		return
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	var buf bytes.Buffer
+	io.Copy(&buf, file)
+
+	file.Close()
+
+	userAvatar := &UserAvatar{
+		Uuid:     uuid.New().String(),
+		UserUuid: userToken.UserUuid,
+		Type:     fileType,
+		Data:     buf.Bytes(),
+	}
+	_, err = s.Db.Model(userAvatar).Insert()
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	user := User{
+		Uuid:       userToken.UserUuid,
+		AvatarUuid: userAvatar.Uuid,
+	}
+	_, err = s.Db.Model(&user).WherePK().Column("avatar_uuid").Update()
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	user = User{
+		Uuid: userToken.UserUuid,
+	}
+	err = s.Db.Model(&user).WherePK().Select()
+	panicIf(err)
+
+	go func() {
+		s.Hub.Broadcast <- Packet{
+			Type: PACKET_TYPE_UPDATE_USERS,
+			Data: []User{user},
+		}
+	}()
+
+	ctx.WriteString("1")
+}
+
+func (s *Server) HttpUserGetAvatar(ctx *fasthttp.RequestCtx) {
+	uuid := ctx.UserValue("uuid")
+	if uuid == nil {
+		return
+	}
+
+	userAvatar := &UserAvatar{
+		Uuid: uuid.(string),
+	}
+	err := s.Db.Model(userAvatar).WherePK().Select()
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	ctx.Response.Header.Set("Content-Type", userAvatar.Type)
+	ctx.Write(userAvatar.Data)
 }
 
 var upgrader = websocket.FastHTTPUpgrader{
@@ -233,7 +314,7 @@ func (s *Server) HttpHandleWebSocket(ctx *fasthttp.RequestCtx) {
 		}
 
 		user := &User{
-			Uuid: userToken.Uuid,
+			Uuid: userToken.UserUuid,
 		}
 		err = s.Db.Model(user).WherePK().ExcludeColumn("password").Select()
 		panicIf(err)

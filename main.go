@@ -43,7 +43,13 @@ func main() {
 	server.Hub = NewHub(server)
 	go server.Hub.Goroutine()
 
-	fasthttp.ListenAndServe(":2727", server.HandleFastHTTP)
+	fasthttpServer := &fasthttp.Server{
+		Handler:            server.HandleFastHTTP,
+		Name:               "Instant Messenger",
+		MaxRequestBodySize: 10 * 1024 * 1024 * 1024, // 10 MB
+	}
+
+	fasthttpServer.ListenAndServe(":2727")
 }
 
 func createSchema(db *pg.DB) error {
