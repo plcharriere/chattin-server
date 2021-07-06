@@ -7,22 +7,28 @@ import (
 	"github.com/go-pg/pg/v10/orm"
 	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
+	"gopkg.in/ini.v1"
 )
 
 func main() {
 	log.Println("Welcome to IM Server")
 
+	log.Println("Parsing configuration file...")
+	cfg, err := ini.Load("config.ini")
+	panicIf(err)
+
 	server := &Server{}
 
 	log.Println("Connecting to postgresql...")
 	server.Db = pg.Connect(&pg.Options{
-		User:     "root",
-		Password: "kYkPg7TtSFeDqwXU",
-		Database: "im-server",
+		Addr:     cfg.Section("postgres").Key("address").String(),
+		User:     cfg.Section("postgres").Key("user").String(),
+		Password: cfg.Section("postgres").Key("password").String(),
+		Database: cfg.Section("postgres").Key("database").String(),
 	})
 	defer server.Db.Close()
 	var n int
-	_, err := server.Db.QueryOne(pg.Scan(&n), "SELECT 1")
+	_, err = server.Db.QueryOne(pg.Scan(&n), "SELECT 1")
 	panicIf(err)
 
 	log.Println("Postgresql connection successful")
@@ -49,7 +55,11 @@ func main() {
 		MaxRequestBodySize: 10 * 1024 * 1024 * 1024, // 10 MB
 	}
 
-	fasthttpServer.ListenAndServe(":2727")
+	httpAddress := cfg.Section("http").Key("address").String()
+	log.Print("Launching HTTP server on ", httpAddress)
+
+	err = fasthttpServer.ListenAndServe(httpAddress)
+	panicIf(err)
 }
 
 func createSchema(db *pg.DB) error {

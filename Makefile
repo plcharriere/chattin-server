@@ -1,5 +1,5 @@
 build:
-	go build -o server src/*.go
+	go build -o server.out src/*.go
 
 run:
 	go run -race src/*.go

@@ -12,5 +12,6 @@ require (
 	github.com/klauspost/compress v1.13.1 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/valyala/fasthttp v1.27.0 // indirect
+	gopkg.in/ini.v1 v1.62.0 // indirect
 	mellium.im/sasl v0.2.1 // indirect
 )
