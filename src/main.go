@@ -51,7 +51,7 @@ func main() {
 
 	fasthttpServer := &fasthttp.Server{
 		Handler:            server.HandleFastHTTP,
-		Name:               "Instant Messenger",
+		Name:               "Chattin",
 		MaxRequestBodySize: 10 * 1024 * 1024 * 1024, // 10 MB
 	}
 

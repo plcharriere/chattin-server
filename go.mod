@@ -1,4 +1,4 @@
-module im-server
+module chattin-server
 
 go 1.16
 
