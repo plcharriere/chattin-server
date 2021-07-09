@@ -136,33 +136,22 @@ func (s *Server) HttpUserProfile(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	userToken := &UserToken{
-		Token: form.Token,
-	}
-	err = s.Db.Model(userToken).WherePK().Select()
+	user, err := s.GetUserByToken(form.Token)
 	if err != nil {
 		ctx.WriteString("-1")
 		return
 	}
 
-	user := User{
-		Uuid:     userToken.UserUuid,
-		Nickname: form.Nickname,
-		Bio:      form.Bio,
-	}
-	_, err = s.Db.Model(&user).WherePK().Column("nickname", "bio").Update()
-	panicIf(err)
+	user.Nickname = form.Nickname
+	user.Bio = form.Bio
 
-	user = User{
-		Uuid: userToken.UserUuid,
-	}
-	err = s.Db.Model(&user).WherePK().Select()
+	_, err = s.Db.Model(user).WherePK().Update()
 	panicIf(err)
 
 	go func() {
 		s.Hub.Broadcast <- Packet{
 			Type: PACKET_TYPE_UPDATE_USERS,
-			Data: []User{user},
+			Data: []User{*user},
 		}
 	}()
 
@@ -190,10 +179,7 @@ func (s *Server) HttpUserPostAvatar(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	userToken := &UserToken{
-		Token: token,
-	}
-	err = s.Db.Model(userToken).WherePK().Select()
+	user, err := s.GetUserByToken(token)
 	if err != nil {
 		ctx.WriteString("-1")
 		return
@@ -212,7 +198,7 @@ func (s *Server) HttpUserPostAvatar(ctx *fasthttp.RequestCtx) {
 
 	userAvatar := &UserAvatar{
 		Uuid:     uuid.New().String(),
-		UserUuid: userToken.UserUuid,
+		UserUuid: user.Uuid,
 		Type:     fileType,
 		Data:     buf.Bytes(),
 	}
@@ -222,26 +208,17 @@ func (s *Server) HttpUserPostAvatar(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	user := User{
-		Uuid:       userToken.UserUuid,
-		AvatarUuid: userAvatar.Uuid,
-	}
-	_, err = s.Db.Model(&user).WherePK().Column("avatar_uuid").Update()
+	user.AvatarUuid = userAvatar.Uuid
+	_, err = s.Db.Model(user).WherePK().Column("avatar_uuid").Update()
 	if err != nil {
 		log.Print(err)
 		return
 	}
 
-	user = User{
-		Uuid: userToken.UserUuid,
-	}
-	err = s.Db.Model(&user).WherePK().Select()
-	panicIf(err)
-
 	go func() {
 		s.Hub.Broadcast <- Packet{
 			Type: PACKET_TYPE_UPDATE_USERS,
-			Data: []User{user},
+			Data: []User{*user},
 		}
 	}()
 
@@ -275,56 +252,27 @@ var upgrader = websocket.FastHTTPUpgrader{
 
 func (s *Server) HttpHandleWebSocket(ctx *fasthttp.RequestCtx) {
 	err := upgrader.Upgrade(ctx, func(conn *websocket.Conn) {
+		defer conn.Close()
+
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
-			log.Println(err)
-			conn.Close()
 			return
 		}
 
-		var packet Packet
-		err = json.Unmarshal(msg, &packet)
-		if err != nil {
-			log.Println(err)
-			conn.Close()
-			return
-		}
-
-		if packet.Type != PACKET_TYPE_AUTH {
-			conn.Close()
+		packet, err := ParsePacketJson(msg)
+		if err != nil || packet.Type != PACKET_TYPE_AUTH {
 			return
 		}
 
 		token := fmt.Sprintf("%s", packet.Data)
-
-		log.Println("AUTH:", token)
-
-		userToken := &UserToken{
-			Token: token,
-		}
-		err = s.Db.Model(userToken).WherePK().Select()
+		user, err := s.GetUserByToken(token)
 		if err != nil {
-			log.Println("WRONG TOKEN:", token)
 			conn.WriteJSON(Packet{
 				Type: PACKET_TYPE_AUTH,
 				Data: false,
 			})
-			conn.Close()
 			return
 		}
-
-		user := &User{
-			Uuid: userToken.UserUuid,
-		}
-		err = s.Db.Model(user).WherePK().ExcludeColumn("password").Select()
-		panicIf(err)
-
-		log.Println("GOOD TOKEN:", token, "IS", user.Uuid, user.Login)
-
-		conn.WriteJSON(Packet{
-			Type: PACKET_TYPE_AUTH,
-			Data: user.Uuid,
-		})
 
 		client := &Client{
 			Conn: conn,
@@ -333,10 +281,17 @@ func (s *Server) HttpHandleWebSocket(ctx *fasthttp.RequestCtx) {
 		}
 		s.Hub.Register <- client
 
+		conn.WriteJSON(Packet{
+			Type: PACKET_TYPE_AUTH,
+			Data: user.Uuid,
+		})
+
 		s.Hub.Broadcast <- Packet{
 			Type: PACKET_TYPE_ONLINE_USERS,
 			Data: []string{user.Uuid},
 		}
+
+		log.Println("{"+user.Uuid+"}", user.Login, "logged in")
 
 		client.Goroutine()
 	})

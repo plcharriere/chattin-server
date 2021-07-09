@@ -1,5 +1,7 @@
 package main
 
+import "encoding/json"
+
 type Packet struct {
 	Type PacketType  `json:"type"`
 	Data interface{} `json:"data"`
@@ -19,3 +21,12 @@ const (
 	PACKET_TYPE_MESSAGE       PacketType = 8
 	PACKET_TYPE_GET_MESSAGES  PacketType = 9
 )
+
+func ParsePacketJson(packetJson []byte) (*Packet, error) {
+	packet := &Packet{}
+	err := json.Unmarshal(packetJson, packet)
+	if err != nil {
+		return nil, err
+	}
+	return packet, nil
+}
