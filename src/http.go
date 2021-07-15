@@ -342,7 +342,8 @@ func (s *Server) HttpPostAvatar(ctx *fasthttp.RequestCtx) {
 
 		user.AvatarUuid = userAvatar.Uuid
 	} else {
-		user.AvatarUuid = ""
+		avatarUuid := string(ctx.FormValue("uuid"))
+		user.AvatarUuid = avatarUuid
 	}
 
 	_, err = s.Db.Model(user).WherePK().Column("avatar_uuid").Update()
