@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strconv"
 
 	"github.com/fasthttp/router"
 	"github.com/fasthttp/websocket"
@@ -24,6 +25,7 @@ func (server *Server) SetupFastHTTPRouter() {
 	server.Router.POST("/user/profile", server.HttpUserProfile)
 	server.Router.POST("/avatars", server.HttpUserPostAvatar)
 	server.Router.GET("/avatars/{uuid}", server.HttpUserGetAvatar)
+	server.Router.GET("/channels/{uuid}/messages", server.HttpGetChannelMessages)
 }
 
 func (server *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
@@ -242,6 +244,62 @@ func (s *Server) HttpUserGetAvatar(ctx *fasthttp.RequestCtx) {
 
 	ctx.Response.Header.Set("Content-Type", userAvatar.Type)
 	ctx.Write(userAvatar.Data)
+}
+
+func (s *Server) HttpGetChannelMessages(ctx *fasthttp.RequestCtx) {
+	token := string(ctx.Request.Header.Peek("token"))
+	valid, err := s.IsTokenValid(token)
+	if err != nil || !valid {
+		return
+	}
+
+	channelUuid := ctx.UserValue("uuid")
+	if channelUuid == nil {
+		return
+	}
+
+	fromMessageUuid := string(ctx.FormValue("from"))
+
+	count := string(ctx.FormValue("count"))
+	if len(count) == 0 {
+		return
+	}
+
+	var messages []Message
+
+	query := s.Db.Model(&messages).Where("channel_uuid = ?", channelUuid)
+
+	if len(fromMessageUuid) > 0 {
+		fromMessage := Message{
+			Uuid: fromMessageUuid,
+		}
+		err := s.Db.Model(&fromMessage).WherePK().Select()
+		if err != nil {
+			log.Print(err)
+			return
+		}
+		query.Where("uuid != ? AND date <= ?", fromMessage.Uuid, fromMessage.Date)
+	}
+
+	countInt, err := strconv.Atoi(count)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	err = query.Order("date DESC").Limit(countInt).Select()
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	json, err := json.Marshal(messages)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	ctx.Write(json)
 }
 
 var upgrader = websocket.FastHTTPUpgrader{

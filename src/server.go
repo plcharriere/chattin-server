@@ -52,3 +52,14 @@ func (server *Server) GetUserByToken(token string) (*User, error) {
 
 	return user, nil
 }
+
+func (server *Server) IsTokenValid(token string) (bool, error) {
+	userToken := &UserToken{
+		Token: token,
+	}
+	err := server.Db.Model(userToken).WherePK().Select()
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}

@@ -105,28 +105,6 @@ func (client *Client) ParseMessage(message []byte) error {
 				Data: msg,
 			}
 		}
-	case PACKET_TYPE_GET_MESSAGES:
-		recvMsg := packet.Data.(map[string]interface{})
-		var messages []Message
-		query := client.Hub.Server.Db.Model(&messages).Where("channel_uuid = ?", recvMsg["channelUuid"])
-		if recvMsg["fromMessageUuid"].(string) != "" {
-			fromMessage := Message{
-				Uuid: recvMsg["fromMessageUuid"].(string),
-			}
-			err := client.Hub.Server.Db.Model(&fromMessage).WherePK().Select()
-			if err != nil {
-				return err
-			}
-			query.Where("uuid != ? AND date <= ?", fromMessage.Uuid, fromMessage.Date)
-		}
-		err := query.Order("date DESC").Limit(int(recvMsg["count"].(float64))).Select()
-		if err != nil {
-			return err
-		}
-		client.SendPacket(Packet{
-			Type: PACKET_TYPE_GET_MESSAGES,
-			Data: messages,
-		})
 	default:
 		log.Println("UNKNOWN PACKET TYPE:", packet.Type)
 	}

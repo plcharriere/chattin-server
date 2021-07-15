@@ -19,7 +19,6 @@ const (
 	PACKET_TYPE_REMOVE_USERS  PacketType = 6
 	PACKET_TYPE_UPDATE_USERS  PacketType = 7
 	PACKET_TYPE_MESSAGE       PacketType = 8
-	PACKET_TYPE_GET_MESSAGES  PacketType = 9
 )
 
 func ParsePacketJson(packetJson []byte) (*Packet, error) {
