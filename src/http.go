@@ -380,6 +380,12 @@ func (s *Server) HttpHandleWebSocket(ctx *fasthttp.RequestCtx) {
 			return
 		}
 
+		user.Online = true
+		_, err = s.Db.Model(user).WherePK().Column("online").Update()
+		if err != nil {
+			log.Print(err)
+		}
+
 		client := &Client{
 			Conn: conn,
 			Hub:  s.Hub,

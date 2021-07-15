@@ -25,6 +25,9 @@ func (client *Client) Goroutine() {
 		}
 		client.Hub.Unregister <- client
 		client.Conn.Close()
+
+		client.User.Online = false
+		client.Hub.Server.Db.Model(client.User).WherePK().Column("online").Update()
 	}()
 	for {
 		_, message, err := client.Conn.ReadMessage()
