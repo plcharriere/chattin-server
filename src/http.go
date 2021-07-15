@@ -27,11 +27,13 @@ func (server *Server) SetupFastHTTPRouter() {
 	server.Router.POST("/avatars", server.HttpPostAvatar)
 	server.Router.GET("/avatars", server.HttpGetAvatars)
 	server.Router.GET("/avatars/{uuid}", server.HttpGetAvatar)
+	server.Router.DELETE("/avatars/{uuid}", server.HttpDeleteAvatar)
 }
 
 func (server *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
 	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
 	ctx.Response.Header.Set("Access-Control-Allow-Headers", "*")
+	ctx.Response.Header.Set("Access-Control-Allow-Methods", "*")
 	server.Router.Handler(ctx)
 }
 
@@ -379,4 +381,45 @@ func (s *Server) HttpGetAvatar(ctx *fasthttp.RequestCtx) {
 
 	ctx.Response.Header.Set("Content-Type", userAvatar.Type)
 	ctx.Write(userAvatar.Data)
+}
+
+func (s *Server) HttpDeleteAvatar(ctx *fasthttp.RequestCtx) {
+	token := string(ctx.Request.Header.Peek("token"))
+
+	user, err := s.GetUserByToken(token)
+	if err != nil {
+		ctx.WriteString("-1")
+		return
+	}
+
+	uuid := ctx.UserValue("uuid")
+	if uuid == nil {
+		return
+	}
+
+	userAvatar := &UserAvatar{
+		Uuid: uuid.(string),
+	}
+	_, err = s.Db.Model(userAvatar).WherePK().Where("user_uuid = ?", user.Uuid).Delete()
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	if user.AvatarUuid == userAvatar.Uuid {
+		user.AvatarUuid = ""
+		_, err = s.Db.Model(user).WherePK().Column("avatar_uuid").Update()
+		if err != nil {
+			log.Print(err)
+		}
+
+		go func() {
+			s.Hub.Broadcast <- Packet{
+				Type: PACKET_TYPE_UPDATE_USERS,
+				Data: []User{*user},
+			}
+		}()
+	}
+
+	ctx.WriteString("1")
 }
