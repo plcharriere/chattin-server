@@ -5,13 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"strconv"
 
 	"github.com/fasthttp/router"
-	"github.com/fasthttp/websocket"
 	"github.com/go-pg/pg/v10"
 	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
@@ -20,14 +18,15 @@ import (
 func (server *Server) SetupFastHTTPRouter() {
 	server.Router = router.New()
 	server.Router.GET("/ws", server.HttpHandleWebSocket)
-	server.Router.POST("/register", server.HttpUserRegister)
-	server.Router.POST("/login", server.HttpUserLogin)
-	server.Router.POST("/user/profile", server.HttpUserProfile)
-	server.Router.POST("/avatars", server.HttpUserPostAvatar)
-	server.Router.GET("/avatars/{uuid}", server.HttpUserGetAvatar)
+	server.Router.POST("/login", server.HttpLogin)
+	server.Router.POST("/register", server.HttpRegister)
+	server.Router.GET("/users", server.HttpGetUsers)
 	server.Router.GET("/channels", server.HttpGetChannels)
 	server.Router.GET("/channels/{uuid}/messages", server.HttpGetChannelMessages)
-	server.Router.GET("/users", server.HttpGetUsers)
+	server.Router.POST("/users/profile", server.HttpUserProfile)
+	server.Router.POST("/avatars", server.HttpPostAvatar)
+	server.Router.GET("/avatars", server.HttpGetAvatars)
+	server.Router.GET("/avatars/{uuid}", server.HttpGetAvatar)
 }
 
 func (server *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
@@ -41,7 +40,7 @@ type CredentialsForm struct {
 	Password string `json:"password"`
 }
 
-func (s *Server) HttpUserLogin(ctx *fasthttp.RequestCtx) {
+func (s *Server) HttpLogin(ctx *fasthttp.RequestCtx) {
 	var form CredentialsForm
 	err := json.Unmarshal(ctx.Request.Body(), &form)
 	if err != nil {
@@ -76,7 +75,7 @@ func (s *Server) HttpUserLogin(ctx *fasthttp.RequestCtx) {
 	}
 }
 
-func (s *Server) HttpUserRegister(ctx *fasthttp.RequestCtx) {
+func (s *Server) HttpRegister(ctx *fasthttp.RequestCtx) {
 	var form CredentialsForm
 	err := json.Unmarshal(ctx.Request.Body(), &form)
 	if err != nil {
@@ -162,90 +161,27 @@ func (s *Server) HttpUserProfile(ctx *fasthttp.RequestCtx) {
 	ctx.WriteString("1")
 }
 
-func (s *Server) HttpUserPostAvatar(ctx *fasthttp.RequestCtx) {
-	token := string(ctx.FormValue("token"))
-	fileHeader, err := ctx.FormFile("file")
+func (s *Server) HttpGetUsers(ctx *fasthttp.RequestCtx) {
+	token := string(ctx.Request.Header.Peek("token"))
+	valid, err := s.IsTokenValid(token)
+	if err != nil || !valid {
+		return
+	}
+
+	var users []User
+	err = s.Db.Model(&users).Select()
 	if err != nil {
 		log.Print(err)
 		return
 	}
 
-	validTypes := map[string]bool{
-		"image/png":  true,
-		"image/jpeg": true,
-		"image/gif":  true,
-		"image/webp": true,
-	}
-
-	fileType := fileHeader.Header.Get("Content-Type")
-	if _, ok := validTypes[fileType]; !ok {
-		log.Print("bad type")
-		return
-	}
-
-	user, err := s.GetUserByToken(token)
-	if err != nil {
-		ctx.WriteString("-1")
-		return
-	}
-
-	file, err := fileHeader.Open()
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	var buf bytes.Buffer
-	io.Copy(&buf, file)
-
-	file.Close()
-
-	userAvatar := &UserAvatar{
-		Uuid:     uuid.New().String(),
-		UserUuid: user.Uuid,
-		Type:     fileType,
-		Data:     buf.Bytes(),
-	}
-	_, err = s.Db.Model(userAvatar).Insert()
+	json, err := json.Marshal(users)
 	if err != nil {
 		log.Print(err)
 		return
 	}
 
-	user.AvatarUuid = userAvatar.Uuid
-	_, err = s.Db.Model(user).WherePK().Column("avatar_uuid").Update()
-	if err != nil {
-		log.Print(err)
-		return
-	}
-
-	go func() {
-		s.Hub.Broadcast <- Packet{
-			Type: PACKET_TYPE_UPDATE_USERS,
-			Data: []User{*user},
-		}
-	}()
-
-	ctx.WriteString("1")
-}
-
-func (s *Server) HttpUserGetAvatar(ctx *fasthttp.RequestCtx) {
-	uuid := ctx.UserValue("uuid")
-	if uuid == nil {
-		return
-	}
-
-	userAvatar := &UserAvatar{
-		Uuid: uuid.(string),
-	}
-	err := s.Db.Model(userAvatar).WherePK().Select()
-	if err != nil {
-		log.Print(err)
-		return
-	}
-
-	ctx.Response.Header.Set("Content-Type", userAvatar.Type)
-	ctx.Write(userAvatar.Data)
+	ctx.Write(json)
 }
 
 func (s *Server) HttpGetChannels(ctx *fasthttp.RequestCtx) {
@@ -327,21 +263,28 @@ func (s *Server) HttpGetChannelMessages(ctx *fasthttp.RequestCtx) {
 	ctx.Write(json)
 }
 
-func (s *Server) HttpGetUsers(ctx *fasthttp.RequestCtx) {
+func (s *Server) HttpGetAvatars(ctx *fasthttp.RequestCtx) {
 	token := string(ctx.Request.Header.Peek("token"))
-	valid, err := s.IsTokenValid(token)
-	if err != nil || !valid {
-		return
-	}
 
-	var users []User
-	err = s.Db.Model(&users).Select()
+	userUuid, err := s.GetUserUuidByToken(token)
 	if err != nil {
 		log.Print(err)
 		return
 	}
 
-	json, err := json.Marshal(users)
+	var avatars []UserAvatar
+	err = s.Db.Model(&avatars).Where("user_uuid = ?", userUuid).Select()
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	var uuids []string
+	for _, avatar := range avatars {
+		uuids = append(uuids, avatar.Uuid)
+	}
+
+	json, err := json.Marshal(uuids)
 	if err != nil {
 		log.Print(err)
 		return
@@ -350,68 +293,89 @@ func (s *Server) HttpGetUsers(ctx *fasthttp.RequestCtx) {
 	ctx.Write(json)
 }
 
-var upgrader = websocket.FastHTTPUpgrader{
-	CheckOrigin: func(ctx *fasthttp.RequestCtx) bool {
-		return true
-	},
-}
+func (s *Server) HttpPostAvatar(ctx *fasthttp.RequestCtx) {
+	token := string(ctx.FormValue("token"))
 
-func (s *Server) HttpHandleWebSocket(ctx *fasthttp.RequestCtx) {
-	err := upgrader.Upgrade(ctx, func(conn *websocket.Conn) {
-		defer conn.Close()
-
-		_, msg, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-
-		packet, err := ParsePacketJson(msg)
-		if err != nil || packet.Type != PACKET_TYPE_AUTH {
-			return
-		}
-
-		token := fmt.Sprintf("%s", packet.Data)
-		user, err := s.GetUserByToken(token)
-		if err != nil {
-			log.Print(err)
-			conn.WriteJSON(Packet{
-				Type: PACKET_TYPE_AUTH,
-				Data: false,
-			})
-			return
-		}
-
-		user.Online = true
-		_, err = s.Db.Model(user).WherePK().Column("online").Update()
-		if err != nil {
-			log.Print(err)
-		}
-
-		client := &Client{
-			Conn: conn,
-			Hub:  s.Hub,
-			User: user,
-		}
-		s.Hub.Register <- client
-
-		packetAuth := PacketAuth{
-			user.Uuid,
-			user.ChannelUuid,
-		}
-		conn.WriteJSON(Packet{
-			Type: PACKET_TYPE_AUTH,
-			Data: packetAuth,
-		})
-
-		log.Println("{"+user.Uuid+"}", user.Login, "logged in")
-
-		client.Goroutine()
-	})
-
+	user, err := s.GetUserByToken(token)
 	if err != nil {
-		if _, ok := err.(websocket.HandshakeError); ok {
-			log.Println(err)
-		}
+		ctx.WriteString("-1")
 		return
 	}
+
+	fileHeader, err := ctx.FormFile("file")
+	if err == nil {
+		validTypes := map[string]bool{
+			"image/png":  true,
+			"image/jpeg": true,
+			"image/gif":  true,
+			"image/webp": true,
+		}
+
+		fileType := fileHeader.Header.Get("Content-Type")
+		if _, ok := validTypes[fileType]; !ok {
+			log.Print("bad type")
+			return
+		}
+
+		file, err := fileHeader.Open()
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		var buf bytes.Buffer
+		io.Copy(&buf, file)
+
+		file.Close()
+
+		userAvatar := &UserAvatar{
+			Uuid:     uuid.New().String(),
+			UserUuid: user.Uuid,
+			Type:     fileType,
+			Data:     buf.Bytes(),
+		}
+		_, err = s.Db.Model(userAvatar).Insert()
+		if err != nil {
+			log.Print(err)
+			return
+		}
+
+		user.AvatarUuid = userAvatar.Uuid
+	} else {
+		user.AvatarUuid = ""
+	}
+
+	_, err = s.Db.Model(user).WherePK().Column("avatar_uuid").Update()
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	go func() {
+		s.Hub.Broadcast <- Packet{
+			Type: PACKET_TYPE_UPDATE_USERS,
+			Data: []User{*user},
+		}
+	}()
+
+	ctx.WriteString("1")
+}
+
+func (s *Server) HttpGetAvatar(ctx *fasthttp.RequestCtx) {
+	uuid := ctx.UserValue("uuid")
+	if uuid == nil {
+		return
+	}
+
+	userAvatar := &UserAvatar{
+		Uuid: uuid.(string),
+	}
+	err := s.Db.Model(userAvatar).WherePK().Select()
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	ctx.Response.Header.Set("Content-Type", userAvatar.Type)
+	ctx.Write(userAvatar.Data)
 }

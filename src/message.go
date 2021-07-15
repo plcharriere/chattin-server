@@ -10,8 +10,3 @@ type Message struct {
 	Edited      time.Time `json:"edited"`
 	Content     string    `json:"content"`
 }
-
-type MessageInput struct {
-	ChannelUuid string `json:"channelUuid"`
-	Content     string `json:"content"`
-}
