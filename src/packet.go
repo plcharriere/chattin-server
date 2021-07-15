@@ -28,3 +28,8 @@ func ParsePacketJson(packetJson []byte) (*Packet, error) {
 	}
 	return packet, nil
 }
+
+type PacketAuth struct {
+	UserUuid    string `json:"userUuid"`
+	ChannelUuid string `json:"channelUuid"`
+}

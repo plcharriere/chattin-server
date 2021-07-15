@@ -394,9 +394,13 @@ func (s *Server) HttpHandleWebSocket(ctx *fasthttp.RequestCtx) {
 		}
 		s.Hub.Register <- client
 
+		packetAuth := PacketAuth{
+			user.Uuid,
+			user.ChannelUuid,
+		}
 		conn.WriteJSON(Packet{
 			Type: PACKET_TYPE_AUTH,
-			Data: []string{user.Uuid, user.ChannelUuid},
+			Data: packetAuth,
 		})
 
 		log.Println("{"+user.Uuid+"}", user.Login, "logged in")
