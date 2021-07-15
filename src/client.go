@@ -27,7 +27,7 @@ func (client *Client) Goroutine() {
 		client.Conn.Close()
 
 		client.User.Online = false
-		client.Hub.Server.Db.Model(client.User).WherePK().Column("online", "channel_uuid").Update()
+		client.Hub.Server.Db.Model(client.User).WherePK().Column("online").Update()
 	}()
 	for {
 		_, message, err := client.Conn.ReadMessage()
