@@ -373,6 +373,7 @@ func (s *Server) HttpHandleWebSocket(ctx *fasthttp.RequestCtx) {
 		token := fmt.Sprintf("%s", packet.Data)
 		user, err := s.GetUserByToken(token)
 		if err != nil {
+			log.Print(err)
 			conn.WriteJSON(Packet{
 				Type: PACKET_TYPE_AUTH,
 				Data: false,
@@ -395,13 +396,8 @@ func (s *Server) HttpHandleWebSocket(ctx *fasthttp.RequestCtx) {
 
 		conn.WriteJSON(Packet{
 			Type: PACKET_TYPE_AUTH,
-			Data: user.Uuid,
+			Data: []string{user.Uuid, user.ChannelUuid},
 		})
-
-		s.Hub.Broadcast <- Packet{
-			Type: PACKET_TYPE_ONLINE_USERS,
-			Data: []string{user.Uuid},
-		}
 
 		log.Println("{"+user.Uuid+"}", user.Login, "logged in")
 
