@@ -70,16 +70,6 @@ func (client *Client) ParseMessage(message []byte) error {
 			client,
 			message,
 		}
-	case PACKET_TYPE_CHANNEL_LIST:
-		var channels []Channel
-		err = client.Hub.Server.Db.Model(&channels).Select()
-		if err != nil {
-			return err
-		}
-		client.SendPacket(Packet{
-			Type: packet.Type,
-			Data: channels,
-		})
 	case PACKET_TYPE_MESSAGE:
 		recvMsg := packet.Data.(map[string]interface{})
 		msg := &Message{
