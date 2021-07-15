@@ -27,6 +27,7 @@ func (server *Server) SetupFastHTTPRouter() {
 	server.Router.GET("/avatars/{uuid}", server.HttpUserGetAvatar)
 	server.Router.GET("/channels", server.HttpGetChannels)
 	server.Router.GET("/channels/{uuid}/messages", server.HttpGetChannelMessages)
+	server.Router.GET("/users", server.HttpGetUsers)
 }
 
 func (server *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
@@ -318,6 +319,29 @@ func (s *Server) HttpGetChannelMessages(ctx *fasthttp.RequestCtx) {
 	}
 
 	json, err := json.Marshal(messages)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	ctx.Write(json)
+}
+
+func (s *Server) HttpGetUsers(ctx *fasthttp.RequestCtx) {
+	token := string(ctx.Request.Header.Peek("token"))
+	valid, err := s.IsTokenValid(token)
+	if err != nil || !valid {
+		return
+	}
+
+	var users []User
+	err = s.Db.Model(&users).Select()
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	json, err := json.Marshal(users)
 	if err != nil {
 		log.Print(err)
 		return

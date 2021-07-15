@@ -55,16 +55,6 @@ func (client *Client) ParseMessage(message []byte) error {
 	}
 
 	switch packet.Type {
-	case PACKET_TYPE_USER_LIST:
-		var users []User
-		err = client.Hub.Server.Db.Model(&users).Select()
-		if err != nil {
-			return err
-		}
-		client.SendPacket(Packet{
-			Type: packet.Type,
-			Data: users,
-		})
 	case PACKET_TYPE_ONLINE_USERS:
 		client.Hub.Message <- ClientMessage{
 			client,
