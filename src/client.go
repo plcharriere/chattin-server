@@ -92,6 +92,12 @@ func (client *Client) ParseMessage(message []byte) error {
 		channelUuid := packet.Data.(string)
 		client.User.ChannelUuid = channelUuid
 		client.Hub.Server.Db.Model(client.User).WherePK().Column("channel_uuid").Update()
+	case PACKET_TYPE_TYPING:
+		channelUuid := packet.Data.(string)
+		client.Hub.Broadcast <- Packet{
+			Type: packet.Type,
+			Data: []string{channelUuid, client.User.Uuid},
+		}
 	default:
 		log.Println("UNKNOWN PACKET TYPE:", packet.Type)
 	}

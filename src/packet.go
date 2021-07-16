@@ -18,6 +18,7 @@ const (
 	PACKET_TYPE_UPDATE_USERS     PacketType = 5
 	PACKET_TYPE_MESSAGE          PacketType = 6
 	PACKET_TYPE_SET_CHANNEL_UUID PacketType = 7
+	PACKET_TYPE_TYPING           PacketType = 8
 )
 
 func ParsePacketJson(packetJson []byte) (*Packet, error) {
