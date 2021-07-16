@@ -98,6 +98,21 @@ func (client *Client) ParseMessage(message []byte) error {
 			Type: packet.Type,
 			Data: []string{channelUuid, client.User.Uuid},
 		}
+	case PACKET_TYPE_DELETE_MESSAGE:
+		messageUuid := packet.Data.(string)
+
+		var message Message
+		r, err := client.Hub.Server.Db.Model(&message).Where("uuid = ?", messageUuid).Where("user_uuid = ?", client.User.Uuid).Delete()
+		if err != nil {
+			return err
+		}
+
+		if r.RowsAffected() > 0 {
+			client.Hub.Broadcast <- Packet{
+				Type: packet.Type,
+				Data: messageUuid,
+			}
+		}
 	default:
 		log.Println("UNKNOWN PACKET TYPE:", packet.Type)
 	}
