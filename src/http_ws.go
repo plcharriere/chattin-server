@@ -61,6 +61,11 @@ func (s *Server) HttpHandleWebSocket(ctx *fasthttp.RequestCtx) {
 			Data: packetAuth,
 		})
 
+		s.Hub.Broadcast <- Packet{
+			Type: PACKET_TYPE_ONLINE_USERS,
+			Data: []string{user.Uuid},
+		}
+
 		log.Println("{"+user.Uuid+"}", user.Login, "logged in")
 
 		client.Goroutine()
