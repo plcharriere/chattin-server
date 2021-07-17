@@ -150,7 +150,7 @@ func (s *Server) HttpUserProfile(ctx *fasthttp.RequestCtx) {
 	user.Nickname = form.Nickname
 	user.Bio = form.Bio
 
-	_, err = s.Db.Model(user).WherePK().Update()
+	_, err = s.Db.Model(user).WherePK().Column("nickname", "bio").Update()
 	panicIf(err)
 
 	go func() {
