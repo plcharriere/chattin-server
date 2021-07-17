@@ -113,6 +113,30 @@ func (client *Client) ParseMessage(message []byte) error {
 				Data: messageUuid,
 			}
 		}
+	case PACKET_TYPE_EDIT_MESSAGE:
+		recvMsg := packet.Data.(map[string]interface{})
+		messageUuid := recvMsg["messageUuid"].(string)
+		content := recvMsg["content"].(string)
+
+		message := &Message{
+			Content: content,
+			Edited:  time.Now(),
+		}
+		r, err := client.Hub.Server.Db.Model(message).Column("content", "edited").Where("uuid = ?", messageUuid).Where("user_uuid = ?", client.User.Uuid).Update()
+		if err != nil {
+			return err
+		}
+
+		if r.RowsAffected() > 0 {
+			client.Hub.Broadcast <- Packet{
+				Type: packet.Type,
+				Data: PacketEditMessage{
+					messageUuid,
+					content,
+					message.Edited,
+				},
+			}
+		}
 	default:
 		log.Println("UNKNOWN PACKET TYPE:", packet.Type)
 	}

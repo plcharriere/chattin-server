@@ -1,6 +1,9 @@
 package main
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 type Packet struct {
 	Type PacketType  `json:"type"`
@@ -20,6 +23,7 @@ const (
 	PACKET_TYPE_SET_CHANNEL_UUID PacketType = 7
 	PACKET_TYPE_TYPING           PacketType = 8
 	PACKET_TYPE_DELETE_MESSAGE   PacketType = 9
+	PACKET_TYPE_EDIT_MESSAGE     PacketType = 10
 )
 
 func ParsePacketJson(packetJson []byte) (*Packet, error) {
@@ -34,4 +38,10 @@ func ParsePacketJson(packetJson []byte) (*Packet, error) {
 type PacketAuth struct {
 	UserUuid    string `json:"userUuid"`
 	ChannelUuid string `json:"channelUuid"`
+}
+
+type PacketEditMessage struct {
+	MessageUuid string    `json:"messageUuid"`
+	Content     string    `json:"content"`
+	Date        time.Time `json:"date"`
 }
