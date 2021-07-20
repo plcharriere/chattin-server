@@ -10,22 +10,3 @@ type User struct {
 	AvatarUuid  string `json:"avatarUuid"`
 	Bio         string `json:"bio"`
 }
-
-type UserToken struct {
-	Token    string `pg:",pk"`
-	UserUuid string `pg:",nopk"`
-}
-
-type UserAvatar struct {
-	Uuid     string
-	UserUuid string
-	Type     string
-	Data     []byte
-}
-
-type UserFile struct {
-	Uuid     string
-	UserUuid string
-	Type     string
-	Data     []byte
-}

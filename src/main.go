@@ -65,11 +65,11 @@ func main() {
 func createSchema(db *pg.DB) error {
 	models := []interface{}{
 		(*User)(nil),
-		(*UserToken)(nil),
-		(*UserAvatar)(nil),
-		(*UserFile)(nil),
+		(*Token)(nil),
+		(*Avatar)(nil),
 		(*Channel)(nil),
 		(*Message)(nil),
+		(*File)(nil),
 	}
 
 	for _, model := range models {
