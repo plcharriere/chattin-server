@@ -135,21 +135,10 @@ func (s *Server) HttpUserRegister(ctx *fasthttp.RequestCtx) {
 	ctx.WriteString(token.Token)
 }
 
-type ProfileForm struct {
-	Token    string `json:"token"`
-	Nickname string `json:"nickname"`
-	Bio      string `json:"bio"`
-}
-
 func (s *Server) HttpUserProfile(ctx *fasthttp.RequestCtx) {
-	var form ProfileForm
-	err := json.Unmarshal(ctx.Request.Body(), &form)
-	if err != nil {
-		HttpInternalServerError(ctx, err)
-		return
-	}
+	token := string(ctx.Request.Header.Peek("token"))
 
-	user, err := s.GetUserByToken(form.Token)
+	user, err := s.GetUserByToken(token)
 	if err != nil {
 		if err == pg.ErrNoRows {
 			ctx.Error("", fasthttp.StatusUnauthorized)
@@ -159,8 +148,8 @@ func (s *Server) HttpUserProfile(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	user.Nickname = form.Nickname
-	user.Bio = form.Bio
+	user.Nickname = string(ctx.FormValue("nickname"))
+	user.Bio = string(ctx.FormValue("bio"))
 
 	_, err = s.Db.Model(user).WherePK().Column("nickname", "bio").Update()
 	if err != nil {
