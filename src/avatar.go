@@ -23,7 +23,7 @@ func (s *Server) HttpGetAvatars(ctx *fasthttp.RequestCtx) {
 	userUuid, err := s.GetUserUuidByToken(token)
 	if err != nil {
 		if err == pg.ErrNoRows {
-			ctx.Error("", fasthttp.StatusMethodNotAllowed)
+			ctx.Error("", fasthttp.StatusUnauthorized)
 		} else {
 			HttpInternalServerError(ctx, err)
 		}
@@ -61,7 +61,7 @@ func (s *Server) HttpPostAvatar(ctx *fasthttp.RequestCtx) {
 	user, err := s.GetUserByToken(token)
 	if err != nil {
 		if err == pg.ErrNoRows {
-			ctx.Error("", fasthttp.StatusMethodNotAllowed)
+			ctx.Error("", fasthttp.StatusUnauthorized)
 		} else {
 			HttpInternalServerError(ctx, err)
 		}
@@ -156,7 +156,7 @@ func (s *Server) HttpDeleteAvatar(ctx *fasthttp.RequestCtx) {
 	user, err := s.GetUserByToken(token)
 	if err != nil {
 		if err == pg.ErrNoRows {
-			ctx.Error("", fasthttp.StatusMethodNotAllowed)
+			ctx.Error("", fasthttp.StatusUnauthorized)
 		} else {
 			HttpInternalServerError(ctx, err)
 		}

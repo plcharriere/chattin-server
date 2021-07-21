@@ -1,15 +1,11 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"log"
 	"strconv"
 
 	"github.com/fasthttp/router"
-	"github.com/go-pg/pg/v10"
-	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
 )
 
@@ -38,96 +34,6 @@ func (server *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
 func HttpInternalServerError(ctx *fasthttp.RequestCtx, err error) {
 	log.Print(err)
 	ctx.Error("", fasthttp.StatusInternalServerError)
-}
-
-type CredentialsForm struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
-}
-
-func (s *Server) HttpLogin(ctx *fasthttp.RequestCtx) {
-	var form CredentialsForm
-	err := json.Unmarshal(ctx.Request.Body(), &form)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	if len(form.Login) > 0 && len(form.Password) > 0 {
-		hash := sha256.Sum256([]byte(form.Password))
-		hashedPassword := hex.EncodeToString(hash[:])
-
-		var uuid string
-		_, err := s.Db.QueryOne(pg.Scan(&uuid), "SELECT uuid FROM users WHERE login = ? and password = ?", form.Login, hashedPassword)
-		if err != nil {
-			log.Print(err)
-			ctx.WriteString("-1")
-		} else {
-			hash := sha256.Sum256([]byte(randomString(64)))
-			token := hex.EncodeToString(hash[:])
-
-			userToken := &Token{
-				Token:    token,
-				UserUuid: uuid,
-			}
-			_, err = s.Db.Model(userToken).Insert()
-			panicIf(err)
-
-			ctx.WriteString(token)
-		}
-	} else {
-		ctx.WriteString("-1")
-	}
-}
-
-func (s *Server) HttpRegister(ctx *fasthttp.RequestCtx) {
-	var form CredentialsForm
-	err := json.Unmarshal(ctx.Request.Body(), &form)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	if len(form.Login) < 1 {
-		ctx.Error("MISSING_LOGIN", fasthttp.StatusOK)
-	} else if len(form.Password) < 1 {
-		ctx.Error("MISSING_PASSWORD", fasthttp.StatusOK)
-	} else {
-		var exists bool
-		_, err := s.Db.QueryOne(pg.Scan(&exists), "SELECT EXISTS(SELECT 1 FROM users WHERE login = ?)", form.Login)
-		panicIf(err)
-
-		if exists {
-			ctx.Error("LOGIN_ALREADY_TAKEN", fasthttp.StatusOK)
-		} else {
-			hash := sha256.Sum256([]byte(form.Password))
-			hashedPassword := hex.EncodeToString(hash[:])
-			user := User{
-				Uuid:     uuid.New().String(),
-				Login:    form.Login,
-				Password: hashedPassword,
-			}
-			_, err := s.Db.Model(&user).Insert()
-			panicIf(err)
-
-			s.Hub.Broadcast <- Packet{
-				Type: PACKET_TYPE_ADD_USERS,
-				Data: []User{user},
-			}
-
-			hash = sha256.Sum256([]byte(randomString(64)))
-			token := hex.EncodeToString(hash[:])
-
-			userToken := &Token{
-				Token:    token,
-				UserUuid: user.Uuid,
-			}
-			_, err = s.Db.Model(userToken).Insert()
-			panicIf(err)
-
-			ctx.WriteString(token)
-		}
-	}
 }
 
 type ProfileForm struct {
