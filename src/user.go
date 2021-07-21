@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+
 	"github.com/go-pg/pg/v10"
 	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
@@ -17,7 +19,36 @@ type User struct {
 	Bio         string `json:"bio"`
 }
 
-func (s *Server) HttpLogin(ctx *fasthttp.RequestCtx) {
+func (s *Server) HttpGetUsers(ctx *fasthttp.RequestCtx) {
+	token := string(ctx.Request.Header.Peek("token"))
+
+	_, err := s.GetUserUuidByToken(token)
+	if err != nil {
+		if err == pg.ErrNoRows {
+			ctx.Error("", fasthttp.StatusUnauthorized)
+		} else {
+			HttpInternalServerError(ctx, err)
+		}
+		return
+	}
+
+	var users []User
+	err = s.Db.Model(&users).Select()
+	if err != nil {
+		HttpInternalServerError(ctx, err)
+		return
+	}
+
+	json, err := json.Marshal(users)
+	if err != nil {
+		HttpInternalServerError(ctx, err)
+		return
+	}
+
+	ctx.Write(json)
+}
+
+func (s *Server) HttpUserLogin(ctx *fasthttp.RequestCtx) {
 	login := string(ctx.FormValue("login"))
 	password := string(ctx.FormValue("password"))
 
@@ -50,7 +81,7 @@ func (s *Server) HttpLogin(ctx *fasthttp.RequestCtx) {
 	ctx.WriteString(token.Token)
 }
 
-func (s *Server) HttpRegister(ctx *fasthttp.RequestCtx) {
+func (s *Server) HttpUserRegister(ctx *fasthttp.RequestCtx) {
 	login := string(ctx.FormValue("login"))
 	password := string(ctx.FormValue("password"))
 
@@ -102,4 +133,45 @@ func (s *Server) HttpRegister(ctx *fasthttp.RequestCtx) {
 	}
 
 	ctx.WriteString(token.Token)
+}
+
+type ProfileForm struct {
+	Token    string `json:"token"`
+	Nickname string `json:"nickname"`
+	Bio      string `json:"bio"`
+}
+
+func (s *Server) HttpUserProfile(ctx *fasthttp.RequestCtx) {
+	var form ProfileForm
+	err := json.Unmarshal(ctx.Request.Body(), &form)
+	if err != nil {
+		HttpInternalServerError(ctx, err)
+		return
+	}
+
+	user, err := s.GetUserByToken(form.Token)
+	if err != nil {
+		if err == pg.ErrNoRows {
+			ctx.Error("", fasthttp.StatusUnauthorized)
+		} else {
+			HttpInternalServerError(ctx, err)
+		}
+		return
+	}
+
+	user.Nickname = form.Nickname
+	user.Bio = form.Bio
+
+	_, err = s.Db.Model(user).WherePK().Column("nickname", "bio").Update()
+	if err != nil {
+		HttpInternalServerError(ctx, err)
+		return
+	}
+
+	go func() {
+		s.Hub.Broadcast <- Packet{
+			Type: PACKET_TYPE_UPDATE_USERS,
+			Data: []User{*user},
+		}
+	}()
 }
