@@ -28,6 +28,7 @@ func (server *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
 	ctx.Response.Header.Set("Access-Control-Allow-Headers", "*")
 	ctx.Response.Header.Set("Access-Control-Allow-Methods", "*")
 	server.Router.Handler(ctx)
+	log.Println(ctx.RemoteAddr(), "HTTP", ctx.Response.StatusCode(), string(ctx.Path()))
 }
 
 func HttpInternalServerError(ctx *fasthttp.RequestCtx, err error) {
