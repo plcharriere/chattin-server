@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"log"
 
+	"github.com/go-pg/pg/v10"
 	"github.com/google/uuid"
 	"github.com/valyala/fasthttp"
 )
@@ -22,25 +22,33 @@ func (s *Server) HttpGetAvatars(ctx *fasthttp.RequestCtx) {
 
 	userUuid, err := s.GetUserUuidByToken(token)
 	if err != nil {
-		log.Print(err)
-		return
+		if err == pg.ErrNoRows {
+			ctx.Error("", fasthttp.StatusMethodNotAllowed)
+		} else {
+			HttpInternalServerError(ctx, err)
+		}
 	}
 
 	var avatars []Avatar
 	err = s.Db.Model(&avatars).Where("user_uuid = ?", userUuid).Select()
 	if err != nil {
-		log.Print(err)
+		HttpInternalServerError(ctx, err)
 		return
 	}
 
-	var uuids []string
-	for _, avatar := range avatars {
-		uuids = append(uuids, avatar.Uuid)
+	if len(avatars) == 0 {
+		ctx.Error("", fasthttp.StatusNoContent)
+		return
 	}
 
-	json, err := json.Marshal(uuids)
+	var avatarUuids []string
+	for _, avatar := range avatars {
+		avatarUuids = append(avatarUuids, avatar.Uuid)
+	}
+
+	json, err := json.Marshal(avatarUuids)
 	if err != nil {
-		log.Print(err)
+		HttpInternalServerError(ctx, err)
 		return
 	}
 
@@ -52,13 +60,20 @@ func (s *Server) HttpPostAvatar(ctx *fasthttp.RequestCtx) {
 
 	user, err := s.GetUserByToken(token)
 	if err != nil {
-		ctx.WriteString("-1")
+		if err == pg.ErrNoRows {
+			ctx.Error("", fasthttp.StatusMethodNotAllowed)
+		} else {
+			HttpInternalServerError(ctx, err)
+		}
 		return
 	}
 
 	fileHeader, err := ctx.FormFile("file")
-	if err == nil {
-		validTypes := map[string]bool{
+	if err != nil {
+		avatarUuid := string(ctx.FormValue("uuid"))
+		user.AvatarUuid = avatarUuid
+	} else {
+		imageTypes := map[string]bool{
 			"image/png":  true,
 			"image/jpeg": true,
 			"image/gif":  true,
@@ -66,14 +81,14 @@ func (s *Server) HttpPostAvatar(ctx *fasthttp.RequestCtx) {
 		}
 
 		fileType := fileHeader.Header.Get("Content-Type")
-		if _, ok := validTypes[fileType]; !ok {
-			log.Print("bad type")
+		if _, ok := imageTypes[fileType]; !ok {
+			ctx.Error("", fasthttp.StatusNotAcceptable)
 			return
 		}
 
 		file, err := fileHeader.Open()
 		if err != nil {
-			log.Println(err)
+			HttpInternalServerError(ctx, err)
 			return
 		}
 
@@ -82,27 +97,25 @@ func (s *Server) HttpPostAvatar(ctx *fasthttp.RequestCtx) {
 
 		file.Close()
 
-		userAvatar := &Avatar{
+		avatar := &Avatar{
 			Uuid:     uuid.New().String(),
 			UserUuid: user.Uuid,
 			Type:     fileType,
 			Data:     buf.Bytes(),
 		}
-		_, err = s.Db.Model(userAvatar).Insert()
+
+		_, err = s.Db.Model(avatar).Insert()
 		if err != nil {
-			log.Print(err)
+			HttpInternalServerError(ctx, err)
 			return
 		}
 
-		user.AvatarUuid = userAvatar.Uuid
-	} else {
-		avatarUuid := string(ctx.FormValue("uuid"))
-		user.AvatarUuid = avatarUuid
+		user.AvatarUuid = avatar.Uuid
 	}
 
 	_, err = s.Db.Model(user).WherePK().Column("avatar_uuid").Update()
 	if err != nil {
-		log.Print(err)
+		HttpInternalServerError(ctx, err)
 		return
 	}
 
@@ -112,27 +125,29 @@ func (s *Server) HttpPostAvatar(ctx *fasthttp.RequestCtx) {
 			Data: []User{*user},
 		}
 	}()
-
-	ctx.WriteString("1")
 }
 
 func (s *Server) HttpGetAvatar(ctx *fasthttp.RequestCtx) {
-	uuid := ctx.UserValue("uuid")
-	if uuid == nil {
+	avatarUuid := ctx.UserValue("uuid")
+	if avatarUuid == nil {
+		ctx.Error("", fasthttp.StatusBadRequest)
 		return
 	}
 
-	userAvatar := &Avatar{
-		Uuid: uuid.(string),
+	avatar := &Avatar{
+		Uuid: avatarUuid.(string),
 	}
-	err := s.Db.Model(userAvatar).WherePK().Select()
+	err := s.Db.Model(avatar).WherePK().Select()
 	if err != nil {
-		log.Print(err)
+		if err == pg.ErrNoRows {
+			ctx.Error("", fasthttp.StatusNotFound)
+		} else {
+			HttpInternalServerError(ctx, err)
+		}
 		return
 	}
 
-	ctx.Response.Header.Set("Content-Type", userAvatar.Type)
-	ctx.Write(userAvatar.Data)
+	ctx.Success(avatar.Type, avatar.Data)
 }
 
 func (s *Server) HttpDeleteAvatar(ctx *fasthttp.RequestCtx) {
@@ -140,29 +155,39 @@ func (s *Server) HttpDeleteAvatar(ctx *fasthttp.RequestCtx) {
 
 	user, err := s.GetUserByToken(token)
 	if err != nil {
-		ctx.WriteString("-1")
+		if err == pg.ErrNoRows {
+			ctx.Error("", fasthttp.StatusMethodNotAllowed)
+		} else {
+			HttpInternalServerError(ctx, err)
+		}
 		return
 	}
 
-	uuid := ctx.UserValue("uuid")
-	if uuid == nil {
+	avatarUuid := ctx.UserValue("uuid")
+	if avatarUuid == nil {
+		ctx.Error("", fasthttp.StatusBadRequest)
 		return
 	}
 
-	userAvatar := &Avatar{
-		Uuid: uuid.(string),
+	avatar := &Avatar{
+		Uuid: avatarUuid.(string),
 	}
-	_, err = s.Db.Model(userAvatar).WherePK().Where("user_uuid = ?", user.Uuid).Delete()
+	r, err := s.Db.Model(avatar).WherePK().Where("user_uuid = ?", user.Uuid).Delete()
 	if err != nil {
-		log.Print(err)
+		HttpInternalServerError(ctx, err)
+		return
+	}
+	if r.RowsAffected() == 0 {
+		ctx.Error("", fasthttp.StatusNotModified)
 		return
 	}
 
-	if user.AvatarUuid == userAvatar.Uuid {
+	if user.AvatarUuid == avatar.Uuid {
 		user.AvatarUuid = ""
 		_, err = s.Db.Model(user).WherePK().Column("avatar_uuid").Update()
 		if err != nil {
-			log.Print(err)
+			HttpInternalServerError(ctx, err)
+			return
 		}
 
 		go func() {
@@ -172,6 +197,4 @@ func (s *Server) HttpDeleteAvatar(ctx *fasthttp.RequestCtx) {
 			}
 		}()
 	}
-
-	ctx.WriteString("1")
 }

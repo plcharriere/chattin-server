@@ -9,6 +9,7 @@ func (server *Server) GetUserUuidByToken(token string) (string, error) {
 	userToken := &Token{
 		Token: token,
 	}
+
 	err := server.Db.Model(userToken).WherePK().Select()
 	if err != nil {
 		return "", err

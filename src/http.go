@@ -35,6 +35,11 @@ func (server *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
 	server.Router.Handler(ctx)
 }
 
+func HttpInternalServerError(ctx *fasthttp.RequestCtx, err error) {
+	log.Print(err)
+	ctx.Error("", fasthttp.StatusInternalServerError)
+}
+
 type CredentialsForm struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
