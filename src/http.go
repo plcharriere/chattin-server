@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"log"
-	"strconv"
 
 	"github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
@@ -87,85 +86,6 @@ func (s *Server) HttpGetUsers(ctx *fasthttp.RequestCtx) {
 	}
 
 	json, err := json.Marshal(users)
-	if err != nil {
-		log.Print(err)
-		return
-	}
-
-	ctx.Write(json)
-}
-
-func (s *Server) HttpGetChannels(ctx *fasthttp.RequestCtx) {
-	token := string(ctx.Request.Header.Peek("token"))
-	valid, err := s.IsTokenValid(token)
-	if err != nil || !valid {
-		return
-	}
-
-	var channels []Channel
-	err = s.Db.Model(&channels).Select()
-	if err != nil {
-		log.Print(err)
-		return
-	}
-
-	json, err := json.Marshal(channels)
-	if err != nil {
-		log.Print(err)
-		return
-	}
-
-	ctx.Write(json)
-}
-
-func (s *Server) HttpGetChannelMessages(ctx *fasthttp.RequestCtx) {
-	token := string(ctx.Request.Header.Peek("token"))
-	valid, err := s.IsTokenValid(token)
-	if err != nil || !valid {
-		return
-	}
-
-	channelUuid := ctx.UserValue("uuid")
-	if channelUuid == nil {
-		return
-	}
-
-	fromMessageUuid := string(ctx.FormValue("from"))
-
-	count := string(ctx.FormValue("count"))
-	if len(count) == 0 {
-		return
-	}
-
-	var messages []Message
-
-	query := s.Db.Model(&messages).Where("channel_uuid = ?", channelUuid)
-
-	if len(fromMessageUuid) > 0 {
-		fromMessage := Message{
-			Uuid: fromMessageUuid,
-		}
-		err := s.Db.Model(&fromMessage).WherePK().Select()
-		if err != nil {
-			log.Print(err)
-			return
-		}
-		query.Where("uuid != ? AND date <= ?", fromMessage.Uuid, fromMessage.Date)
-	}
-
-	countInt, err := strconv.Atoi(count)
-	if err != nil {
-		log.Print(err)
-		return
-	}
-
-	err = query.Order("date DESC").Limit(countInt).Select()
-	if err != nil {
-		log.Print(err)
-		return
-	}
-
-	json, err := json.Marshal(messages)
 	if err != nil {
 		log.Print(err)
 		return
