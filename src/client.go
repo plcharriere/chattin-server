@@ -141,5 +141,9 @@ func (client *Client) ParseMessage(message []byte) error {
 		log.Println("UNKNOWN PACKET TYPE:", packet.Type)
 	}
 
+	if packet.Type != PACKET_TYPE_TYPING {
+		log.Println(client.Conn.RemoteAddr(), "WS", packet.Type)
+	}
+
 	return nil
 }

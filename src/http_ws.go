@@ -66,7 +66,9 @@ func (s *Server) HttpHandleWebSocket(ctx *fasthttp.RequestCtx) {
 			Data: []string{user.Uuid},
 		}
 
-		log.Println("{"+user.Uuid+"}", user.Login, "logged in")
+		if packet.Type != PACKET_TYPE_TYPING {
+			log.Println(client.Conn.RemoteAddr(), "WS", "authenticated in as", user.Login)
+		}
 
 		client.Goroutine()
 	})
