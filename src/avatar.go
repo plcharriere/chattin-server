@@ -56,7 +56,7 @@ func (s *Server) HttpGetAvatars(ctx *fasthttp.RequestCtx) {
 }
 
 func (s *Server) HttpPostAvatar(ctx *fasthttp.RequestCtx) {
-	token := string(ctx.FormValue("token"))
+	token := string(ctx.Request.Header.Peek("token"))
 
 	user, err := s.GetUserByToken(token)
 	if err != nil {
