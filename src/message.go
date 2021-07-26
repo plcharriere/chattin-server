@@ -9,4 +9,5 @@ type Message struct {
 	Date        time.Time `json:"date"`
 	Edited      time.Time `json:"edited"`
 	Content     string    `json:"content"`
+	Files       []string  `json:"files"`
 }

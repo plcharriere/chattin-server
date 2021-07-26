@@ -20,6 +20,9 @@ func (server *Server) SetupFastHTTPRouter() {
 	server.Router.GET("/avatars", server.HttpGetAvatars)
 	server.Router.GET("/avatars/{uuid}", server.HttpGetAvatar)
 	server.Router.DELETE("/avatars/{uuid}", server.HttpDeleteAvatar)
+	server.Router.POST("/files", server.HttpPostFile)
+	server.Router.GET("/files/{uuid}", server.HttpGetFile)
+	server.Router.GET("/files/{uuid}/infos", server.HttpGetFileInfos)
 }
 
 func (server *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {

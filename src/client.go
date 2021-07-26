@@ -65,6 +65,10 @@ func (client *Client) ParseMessage(message []byte) error {
 		}
 	case PACKET_TYPE_MESSAGE:
 		recvMsg := packet.Data.(map[string]interface{})
+		files := []string{}
+		for _, file := range recvMsg["files"].([]interface{}) {
+			files = append(files, file.(string))
+		}
 		msg := &Message{
 			uuid.New().String(),
 			recvMsg["channelUuid"].(string),
@@ -72,6 +76,7 @@ func (client *Client) ParseMessage(message []byte) error {
 			time.Now(),
 			time.Time{},
 			recvMsg["content"].(string),
+			files,
 		}
 
 		channel := client.Hub.Server.GetChannelByUuid(recvMsg["channelUuid"].(string))
