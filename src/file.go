@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"strconv"
 
 	"github.com/go-pg/pg/v10"
 	"github.com/google/uuid"
@@ -16,6 +15,7 @@ type File struct {
 	UserUuid string
 	Name     string
 	Type     string
+	Size     int64
 	Data     []byte
 }
 
@@ -56,6 +56,7 @@ func (s *Server) HttpPostFile(ctx *fasthttp.RequestCtx) {
 		UserUuid: userUuid,
 		Name:     fileHeader.Filename,
 		Type:     fileType,
+		Size:     fileHeader.Size,
 		Data:     buf.Bytes(),
 	}
 
@@ -101,7 +102,7 @@ func (s *Server) HttpGetFileInfos(ctx *fasthttp.RequestCtx) {
 	file := &File{
 		Uuid: fileUuid.(string),
 	}
-	err := s.Db.Model(file).WherePK().Select()
+	err := s.Db.Model(file).WherePK().Column("name", "type", "size").Select()
 	if err != nil {
 		if err == pg.ErrNoRows {
 			ctx.Error("", fasthttp.StatusNotFound)
@@ -111,13 +112,9 @@ func (s *Server) HttpGetFileInfos(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	size := strconv.Itoa(len(file.Data))
-
-	infos := []string{
-		file.Name, size,
-	}
-
-	json, err := json.Marshal(infos)
+	json, err := json.Marshal(map[string]interface{}{
+		"name": file.Name, "type": file.Type, "size": file.Size,
+	})
 	if err != nil {
 		HttpInternalServerError(ctx, err)
 		return
