@@ -55,14 +55,22 @@ func main() {
 
 	fasthttpServer := &fasthttp.Server{
 		Handler:            server.HandleFastHTTP,
-		Name:               "Chattin",
+		Name:               server.Configuration.Name,
 		MaxRequestBodySize: 10 * 1024 * 1024 * 1024, // 10 MB
 	}
 
 	httpAddress := cfg.Section("http").Key("address").String()
-	log.Print("Launching HTTP server on ", httpAddress)
+	certFilePath := cfg.Section("ssl").Key("cert").String()
+	keyFilePath := cfg.Section("ssl").Key("key").String()
 
-	err = fasthttpServer.ListenAndServe(httpAddress)
+	if len(certFilePath) > 0 && len(keyFilePath) > 0 {
+		log.Print("Launching HTTPS server on ", httpAddress)
+		err = fasthttpServer.ListenAndServeTLS(httpAddress, certFilePath, keyFilePath)
+	} else {
+		log.Print("Launching HTTP server on ", httpAddress)
+		err = fasthttpServer.ListenAndServe(httpAddress)
+	}
+
 	panicIf(err)
 }
 
