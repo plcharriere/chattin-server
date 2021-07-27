@@ -122,3 +122,28 @@ func (s *Server) HttpGetFileInfos(ctx *fasthttp.RequestCtx) {
 
 	ctx.Write(json)
 }
+
+func (s *Server) HttpDownloadFile(ctx *fasthttp.RequestCtx) {
+	fileUuid := ctx.UserValue("uuid")
+	if fileUuid == nil {
+		ctx.Error("", fasthttp.StatusBadRequest)
+		return
+	}
+
+	file := &File{
+		Uuid: fileUuid.(string),
+	}
+	err := s.Db.Model(file).WherePK().Select()
+	if err != nil {
+		if err == pg.ErrNoRows {
+			ctx.Error("", fasthttp.StatusNotFound)
+		} else {
+			HttpInternalServerError(ctx, err)
+		}
+		return
+	}
+
+	ctx.Response.Header.Add("Content-Disposition", "attachment; filename=\""+file.Name+"\"")
+
+	ctx.Success(file.Type, file.Data)
+}

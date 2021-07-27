@@ -23,6 +23,7 @@ func (server *Server) SetupFastHTTPRouter() {
 	server.Router.POST("/files", server.HttpPostFile)
 	server.Router.GET("/files/{uuid}", server.HttpGetFile)
 	server.Router.GET("/files/{uuid}/infos", server.HttpGetFileInfos)
+	server.Router.GET("/files/{uuid}/download", server.HttpDownloadFile)
 }
 
 func (server *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
