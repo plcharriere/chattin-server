@@ -38,6 +38,10 @@ func main() {
 		log.Println("Created postgres schema")
 	}
 
+	log.Print("Loading server configuration...")
+	err = server.Db.Model(&server.Configuration).Select()
+	panicIf(err)
+
 	log.Print("Loading channels...")
 	err = server.Db.Model(&server.Channels).Select()
 	panicIf(err)
@@ -64,6 +68,7 @@ func main() {
 
 func createSchema(db *pg.DB) error {
 	models := []interface{}{
+		(*Configuration)(nil),
 		(*User)(nil),
 		(*Token)(nil),
 		(*Avatar)(nil),
@@ -78,6 +83,11 @@ func createSchema(db *pg.DB) error {
 			return err
 		}
 	}
+
+	db.Model(&Configuration{
+		Name:        "Chattin",
+		Description: "",
+	}).Insert()
 
 	db.Model(&Channel{
 		Uuid:         uuid.New().String(),

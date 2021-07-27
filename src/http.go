@@ -9,6 +9,7 @@ import (
 
 func (server *Server) SetupFastHTTPRouter() {
 	server.Router = router.New()
+	server.Router.GET("/configuration", server.HttpGetConfiguration)
 	server.Router.GET("/ws", server.HttpHandleWebSocket)
 	server.Router.GET("/users", server.HttpGetUsers)
 	server.Router.POST("/users/login", server.HttpUserLogin)
