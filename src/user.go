@@ -58,7 +58,7 @@ func (s *Server) HttpUserLogin(ctx *fasthttp.RequestCtx) {
 	}
 
 	var uuid string
-	_, err := s.Db.QueryOne(pg.Scan(&uuid), "SELECT uuid FROM users WHERE login = ? and password = ?", login, hashPassword(password))
+	_, err := s.Db.QueryOne(pg.Scan(&uuid), "SELECT uuid FROM users WHERE login ILIKE ? and password = ?", login, hashPassword(password))
 	if err != nil {
 		if err == pg.ErrNoRows {
 			ctx.Error("", fasthttp.StatusUnauthorized)
