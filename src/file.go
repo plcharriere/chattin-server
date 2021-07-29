@@ -76,10 +76,16 @@ func (s *Server) HttpGetFile(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	fileName := ctx.UserValue("name")
+	if fileUuid == nil {
+		ctx.Error("", fasthttp.StatusBadRequest)
+		return
+	}
+
 	file := &File{
 		Uuid: fileUuid.(string),
 	}
-	err := s.Db.Model(file).WherePK().Select()
+	err := s.Db.Model(file).WherePK().Where("name = ?", fileName.(string)).Select()
 	if err != nil {
 		if err == pg.ErrNoRows {
 			ctx.Error("", fasthttp.StatusNotFound)
@@ -93,6 +99,18 @@ func (s *Server) HttpGetFile(ctx *fasthttp.RequestCtx) {
 }
 
 func (s *Server) HttpGetFileInfos(ctx *fasthttp.RequestCtx) {
+	token := string(ctx.Request.Header.Peek("token"))
+
+	_, err := s.GetUserUuidByToken(token)
+	if err != nil {
+		if err == pg.ErrNoRows {
+			ctx.Error("", fasthttp.StatusUnauthorized)
+		} else {
+			HttpInternalServerError(ctx, err)
+		}
+		return
+	}
+
 	fileUuid := ctx.UserValue("uuid")
 	if fileUuid == nil {
 		ctx.Error("", fasthttp.StatusBadRequest)
@@ -102,7 +120,7 @@ func (s *Server) HttpGetFileInfos(ctx *fasthttp.RequestCtx) {
 	file := &File{
 		Uuid: fileUuid.(string),
 	}
-	err := s.Db.Model(file).WherePK().Column("name", "type", "size").Select()
+	err = s.Db.Model(file).WherePK().Column("name", "type", "size").Select()
 	if err != nil {
 		if err == pg.ErrNoRows {
 			ctx.Error("", fasthttp.StatusNotFound)
@@ -130,10 +148,16 @@ func (s *Server) HttpDownloadFile(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	fileName := ctx.UserValue("name")
+	if fileUuid == nil {
+		ctx.Error("", fasthttp.StatusBadRequest)
+		return
+	}
+
 	file := &File{
 		Uuid: fileUuid.(string),
 	}
-	err := s.Db.Model(file).WherePK().Select()
+	err := s.Db.Model(file).WherePK().Where("name = ?", fileName.(string)).Select()
 	if err != nil {
 		if err == pg.ErrNoRows {
 			ctx.Error("", fasthttp.StatusNotFound)
