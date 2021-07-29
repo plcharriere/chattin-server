@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/url"
+	"strings"
 
 	"github.com/go-pg/pg/v10"
 	"github.com/google/uuid"
@@ -82,10 +84,16 @@ func (s *Server) HttpGetFile(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	decodedFileName, err := url.QueryUnescape(fileName.(string))
+	if err != nil {
+		HttpInternalServerError(ctx, err)
+		return
+	}
+
 	file := &File{
 		Uuid: fileUuid.(string),
 	}
-	err := s.Db.Model(file).WherePK().Where("name = ?", fileName.(string)).Select()
+	err = s.Db.Model(file).WherePK().Where("name = ?", decodedFileName).Select()
 	if err != nil {
 		if err == pg.ErrNoRows {
 			ctx.Error("", fasthttp.StatusNotFound)
@@ -95,7 +103,12 @@ func (s *Server) HttpGetFile(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	ctx.Success(file.Type, file.Data)
+	fileType := file.Type
+	if strings.Contains(fileType, "html") {
+		fileType = "text/plain"
+	}
+
+	ctx.Success(fileType, file.Data)
 }
 
 func (s *Server) HttpGetFileInfos(ctx *fasthttp.RequestCtx) {
@@ -154,10 +167,16 @@ func (s *Server) HttpDownloadFile(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	decodedFileName, err := url.QueryUnescape(fileName.(string))
+	if err != nil {
+		HttpInternalServerError(ctx, err)
+		return
+	}
+
 	file := &File{
 		Uuid: fileUuid.(string),
 	}
-	err := s.Db.Model(file).WherePK().Where("name = ?", fileName.(string)).Select()
+	err = s.Db.Model(file).WherePK().Where("name = ?", decodedFileName).Select()
 	if err != nil {
 		if err == pg.ErrNoRows {
 			ctx.Error("", fasthttp.StatusNotFound)
@@ -169,5 +188,10 @@ func (s *Server) HttpDownloadFile(ctx *fasthttp.RequestCtx) {
 
 	ctx.Response.Header.Add("Content-Disposition", "attachment; filename=\""+file.Name+"\"")
 
-	ctx.Success(file.Type, file.Data)
+	fileType := file.Type
+	if strings.Contains(fileType, "html") {
+		fileType = "text/plain"
+	}
+
+	ctx.Success(fileType, file.Data)
 }
