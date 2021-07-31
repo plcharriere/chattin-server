@@ -4,7 +4,10 @@ build:
 run:
 	go run -race src/*.go
 
+docker:
+	docker build . -t chattin-server
+
 clean:
-	rm -rf server
+	rm -rf bin
 
 all: build

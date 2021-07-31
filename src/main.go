@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/go-pg/pg/v10"
 	"github.com/go-pg/pg/v10/orm"
@@ -13,18 +14,51 @@ import (
 func main() {
 	log.Println("Welcome to IM Server")
 
-	log.Println("Parsing configuration file...")
+	log.Print("Parsing configuration...")
+
 	cfg, err := ini.Load("config.ini")
-	panicIf(err)
+	if err != nil {
+		log.Print(err)
+	}
+
+	postgresAddress := os.Getenv("POSTGRES_ADDRESS")
+	if len(postgresAddress) == 0 && cfg != nil {
+		postgresAddress = cfg.Section("postgres").Key("address").String()
+	}
+	postgresUser := os.Getenv("POSTGRES_USER")
+	if len(postgresUser) == 0 && cfg != nil {
+		postgresUser = cfg.Section("postgres").Key("user").String()
+	}
+	postgresPassword := os.Getenv("POSTGRES_PASSWORD")
+	if len(postgresPassword) == 0 && cfg != nil {
+		postgresPassword = cfg.Section("postgres").Key("password").String()
+	}
+	postgresDatabase := os.Getenv("POSTGRES_DATABASE")
+	if len(postgresDatabase) == 0 && cfg != nil {
+		postgresDatabase = cfg.Section("postgres").Key("database").String()
+	}
+
+	httpAddress := os.Getenv("ADDRESS")
+	if len(httpAddress) == 0 && cfg != nil {
+		httpAddress = cfg.Section("http").Key("address").String()
+	}
+	certFilePath := os.Getenv("SSL_CERT")
+	if len(certFilePath) == 0 && cfg != nil {
+		certFilePath = cfg.Section("ssl").Key("cert").String()
+	}
+	keyFilePath := os.Getenv("SSL_KEY")
+	if len(keyFilePath) == 0 && cfg != nil {
+		keyFilePath = cfg.Section("ssl").Key("key").String()
+	}
 
 	server := &Server{}
 
 	log.Println("Connecting to postgresql...")
 	server.Db = pg.Connect(&pg.Options{
-		Addr:     cfg.Section("postgres").Key("address").String(),
-		User:     cfg.Section("postgres").Key("user").String(),
-		Password: cfg.Section("postgres").Key("password").String(),
-		Database: cfg.Section("postgres").Key("database").String(),
+		Addr:     postgresAddress,
+		User:     postgresUser,
+		Password: postgresPassword,
+		Database: postgresDatabase,
 	})
 	defer server.Db.Close()
 	var n int
@@ -58,10 +92,6 @@ func main() {
 		Name:               server.Configuration.Name,
 		MaxRequestBodySize: 10 * 1024 * 1024 * 1024, // 10 MB
 	}
-
-	httpAddress := cfg.Section("http").Key("address").String()
-	certFilePath := cfg.Section("ssl").Key("cert").String()
-	keyFilePath := cfg.Section("ssl").Key("key").String()
 
 	if len(certFilePath) > 0 && len(keyFilePath) > 0 {
 		log.Print("Launching HTTPS server on ", httpAddress)
