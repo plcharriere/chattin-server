@@ -3,10 +3,10 @@ address = :2727
 
 [postgres]
 address = localhost:5432
-user = root
-password = kYkPg7TtSFeDqwXU
+user = postgres
+password =
 database = chattin
 
 [ssl]
-cert=
-key=
+cert =
+key =
