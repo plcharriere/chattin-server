@@ -28,10 +28,10 @@ func (server *Server) SetupFastHTTPRouter() {
 }
 
 func (server *Server) HandleFastHTTP(ctx *fasthttp.RequestCtx) {
+	server.Router.Handler(ctx)
 	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
 	ctx.Response.Header.Set("Access-Control-Allow-Headers", "*")
 	ctx.Response.Header.Set("Access-Control-Allow-Methods", "*")
-	server.Router.Handler(ctx)
 	log.Println(ctx.RemoteAddr(), "HTTP", ctx.Response.StatusCode(), string(ctx.Method()), string(ctx.Path()))
 }
 
